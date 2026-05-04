@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import messagebox, simpledialog
+from tkinter import messagebox, simpledialog, ttk
 import random
 import json
 import os
@@ -7,6 +7,7 @@ import subprocess
 
 # Путь к файлу истории
 HISTORY_FILE = "tasks.json"
+VALID_CATEGORIES = ["учёба", "спорт", "работа"]
 
 # Предопределённые задачи с категориями
 DEFAULT_TASKS = [
@@ -18,17 +19,34 @@ DEFAULT_TASKS = [
     {"task": "Ответить на письма", "category": "работа"},
 ]
 
-# Загрузка истории из файла
+# --- ИСПРАВЛЕНИЕ 1: Надежная загрузка истории ---
 def load_history():
-    if os.path.exists(HISTORY_FILE):
+    """Загружает историю из файла. Если файл пуст или поврежден, возвращает пустой список."""
+    if not os.path.exists(HISTORY_FILE):
+        return []
+    try:
         with open(HISTORY_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return []
+            content = f.read().strip()
+            if not content:  # Если файл пустой
+                return []
+            return json.loads(content)
+    except (json.JSONDecodeError, IOError):
+        # Если файл поврежден или ошибка чтения
+        return []
 
-# Сохранение истории в файл
+# --- ИСПРАВЛЕНИЕ 2: Корректное сохранение ---
 def save_history(history):
-    with open(HISTORY_FILE, "w", encoding="utf-8") as f:
-        json.dump(history, f, ensure_ascii=False, indent=2)
+    """Сохраняет историю, гарантируя запись валидного JSON."""
+    try:
+        with open(HISTORY_FILE, "w", encoding="utf-8") as f:
+            json.dump(history, f, ensure_ascii=False, indent=2)
+    except IOError as e:
+        messagebox.showerror("Ошибка сохранения", f"Не удалось сохранить историю: {e}")
+
+# Инициализация файла при старте, если он пуст
+def init_storage():
+    if not os.path.exists(HISTORY_FILE) or os.path.getsize(HISTORY_FILE) == 0:
+        save_history([])
 
 # Генерация случайной задачи с учётом фильтра
 def generate_task():
@@ -44,7 +62,7 @@ def generate_task():
 
     task = random.choice(available_tasks)
     task_text = f"{task['task']} [{task['category']}]"
-    current_task_label.config(text=task_text)
+    current_task_label.config(text=task_text, fg="#2c3e50")
 
     # Добавляем в историю
     history = load_history()
@@ -56,70 +74,12 @@ def generate_task():
 def update_history_list():
     history_listbox.delete(0, tk.END)
     history = load_history()
-    for item in history:
+    for item in reversed(history):  # Показываем новые задачи сверху
         history_listbox.insert(tk.END, item)
 
-# Добавление новой задачи пользователем
+# --- ИСПРАВЛЕНИЕ 3: Улучшенная валидация ввода ---
 def add_new_task():
+    # 1. Проверка названия
     new_task = simpledialog.askstring("Новая задача", "Введите название задачи:")
     if not new_task or not new_task.strip():
-        messagebox.showerror("Ошибка", "Задача не может быть пустой!")
-        return
-
-    category = simpledialog.askstring("Категория", "Введите категорию (учёба, спорт, работа):")
-    if category not in ["учёба", "спорт", "работа"]:
-        messagebox.showerror("Ошибка", "Недопустимая категория! Используйте: учёба, спорт, работа.")
-        return
-
-    new_entry = {"task": new_task.strip(), "category": category}
-    DEFAULT_TASKS.append(new_entry)
-    messagebox.showinfo("Успех", "Задача добавлена!")
-
-# Инициализация Git репозитория и коммит
-def init_git():
-    try:
-        subprocess.run(["git", "init"], check=True)
-        subprocess.run(["git", "add", "."], check=True)
-        subprocess.run(["git", "commit", "-m", "Initial commit"], check=True)
-        messagebox.showinfo("Git", "Git репозиторий инициализирован и сделан первый коммит.")
-    except Exception as e:
-        messagebox.showerror("Git Error", f"Ошибка при работе с Git: {e}")
-
-# Создание основного окна
-root = tk.Tk()
-root.title("Random Task Generator")
-root.geometry("600x500")
-
-# Метка для текущей задачи
-current_task_label = tk.Label(root, text="Нажмите 'Сгенерировать задачу'", font=("Arial", 14))
-current_task_label.pack(pady=10)
-
-# Выпадающий список для фильтрации по категории
-category_var = tk.StringVar(value="Все")
-category_menu = tk.OptionMenu(root, category_var, "Все", "учёба", "спорт", "работа")
-category_menu.pack(pady=5)
-
-# Кнопка генерации задачи
-generate_button = tk.Button(root, text="Сгенерировать задачу", command=generate_task, font=("Arial", 12))
-generate_button.pack(pady=5)
-
-# Кнопка добавления новой задачи
-add_button = tk.Button(root, text="Добавить новую задачу", command=add_new_task, font=("Arial", 12))
-add_button.pack(pady=5)
-
-# Список истории
-history_label = tk.Label(root, text="История задач:", font=("Arial", 12))
-history_label.pack(pady=5)
-
-history_listbox = tk.Listbox(root, width=50, height=10)
-history_listbox.pack(pady=5)
-
-# Кнопка инициализации Git
-git_button = tk.Button(root, text="Инициализировать Git", command=init_git, font=("Arial", 12))
-git_button.pack(pady=10)
-
-# Загрузка истории при запуске
-update_history_list()
-
-# Запуск приложения
-root.mainloop()
+        messagebox.showerror("Ошибка ввода", "Задача не может быть пустой!")

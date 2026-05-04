@@ -1,4 +1,4 @@
-# 🎲 Random Task Generator
+ Random Task Generator
 
 > Генератор случайных задач с графическим интерфейсом
 
